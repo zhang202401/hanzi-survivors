@@ -53,7 +53,8 @@ export function showReport({ timeStr, kills, level, correct, total, bossKills, v
     wrong.slice(0, 8).forEach((c) => {
       const box = document.createElement('div');
       box.className = 'rp-wrong';
-      box.innerHTML = `<b>${c.char}</b>（${c.pinyin}）${c.word} · 错 ${c.meta.count} 次`;
+      const streak = c.meta.streak || 0;
+      box.innerHTML = `<b>${c.char}</b>（${c.pinyin}）${c.word} · 错 ${c.meta.count} 次 · 复习连对 ${streak}/4`;
       panel.appendChild(box);
     });
   }

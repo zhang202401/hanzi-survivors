@@ -24,7 +24,12 @@ function save() {
   } catch (e) { /* ignore */ }
 }
 
-/** 记录一次识字答题 */
+/**
+ * 记录一次识字答题。
+ * 错字本采用间隔重复（SRS/Leitner 盒简化版）：
+ *   答错 → 重学（隔 2 级重现）；答对 → 连对 streak+1，复习间隔逐步拉长（3→7→14 级），
+ *   连对 4 次视为掌握，移出错字本。研究支持扩展间隔比集中复习记得更久。
+ */
 export function recordCharAnswer(char, correct, gameLevel) {
   const st = profile.charStats[char] || { n: 0, c: 0, lastWrongAt: 0 };
   st.n += 1;
@@ -37,9 +42,17 @@ export function recordCharAnswer(char, correct, gameLevel) {
 
   const wb = profile.wrongBook;
   if (!correct) {
-    wb[char] = { count: (wb[char]?.count || 0) + 1, due: gameLevel + 2, lastAt: Date.now() };
+    wb[char] = { count: (wb[char]?.count || 0) + 1, streak: 0, due: gameLevel + 2, lastAt: Date.now() };
   } else if (wb[char]) {
-    delete wb[char]; // 答对移出错字本
+    const streak = (wb[char].streak || 0) + 1;
+    if (streak >= 4) {
+      delete wb[char]; // 连对 4 次：掌握，移出错字本
+    } else {
+      const gaps = [3, 7, 14]; // 连对 1/2/3 次后的下一轮复习间隔（级）
+      wb[char].streak = streak;
+      wb[char].due = gameLevel + gaps[streak - 1];
+      wb[char].lastAt = Date.now();
+    }
   }
   save();
 }
@@ -64,7 +77,8 @@ export function pickQuizChar(gameLevel) {
   if (due.length && Math.random() < 0.6) {
     target = due[Math.floor(Math.random() * due.length)];
   } else {
-    // 2) 加权抽样：没考过的字 ×1.5；正确率 <60% ×2.5；≥85%（测过≥3次）×0.4
+    // 2) 加权抽样：没考过的字 ×1.5；正确率 <60% ×2.5；≥85%（测过≥3次）×0.4；
+    //    错字本中尚未到复习期的字 ×0.5（SRS：不到时间不抢先考）
     const weights = pool.map((c) => {
       const st = profile.charStats[c.char];
       let w = 1;
@@ -74,6 +88,8 @@ export function pickQuizChar(gameLevel) {
         if (acc < 0.6) w = 2.5;
         else if (acc >= 0.85 && st.n >= 3) w = 0.4;
       }
+      const wbEntry = profile.wrongBook[c.char];
+      if (wbEntry && wbEntry.due > gameLevel) w = Math.min(w, 0.5);
       return { c, w };
     });
     const total = weights.reduce((s, x) => s + x.w, 0);

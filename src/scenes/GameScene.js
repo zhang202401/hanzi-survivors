@@ -8,7 +8,8 @@ import { drawMixedCards } from '../data/weapons.js';
 import { showReport } from '../systems/report.js';
 import { sfx } from '../systems/audio.js';
 import { maybeShowTutorial } from '../systems/tutorial.js';
-import { isPerfMode, getSkin } from '../systems/settings.js';
+import { isPerfMode, getSkin, showRestOverlay } from '../systems/settings.js';
+import { addPlayTime, getPlayTime, resetPlayTime, isRestReminderOn, restIntervalMin } from '../systems/playtime.js';
 import { checkAchievement } from '../systems/achievements.js';
 import { voice } from '../systems/voice.js';
 
@@ -1534,7 +1535,21 @@ export default class GameScene extends Phaser.Scene {
   update(_time, delta) {
     const ps = this.playerState;
 
-    // 胜利判定：存活 10 分钟 → 进入无尽模式（继续游戏）
+    // 用眼健康：累计游玩时长（暂停/选卡/死亡不计时），到点弹休息提醒并暂停游戏
+    if (!this.restOverlayOpen && !this.paused && !this.choosing && !ps.dead) {
+      addPlayTime(delta);
+      if (isRestReminderOn() && getPlayTime() >= restIntervalMin() * 60000) {
+        this.restOverlayOpen = true;
+        this.togglePause();
+        showRestOverlay(() => {
+          this.restOverlayOpen = false;
+          resetPlayTime();
+          if (this.paused && !this.playerState.dead) this.togglePause();
+        });
+      }
+    }
+
+    // 胜利判定：存活 8 分钟 → 进入无尽模式（继续游戏）
     if (!this.victoryDone && this.elapsedMs >= RUN.victorySec * 1000) {
       this.victory();
     }

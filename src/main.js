@@ -53,4 +53,9 @@ import UIScene from './scenes/UIScene.js';
       localStorage.setItem('hanzi-survivors-errors', JSON.stringify(log.slice(-20)));
     } catch (err) { /* ignore */ }
   });
+
+  // PWA 离线支持（生产环境注册；本地 dev 不注册避免缓存干扰调试）
+  if (!import.meta.env?.DEV) {
+    navigator.serviceWorker?.register('./sw.js').catch(() => {});
+  }
 })();
