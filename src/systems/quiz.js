@@ -33,6 +33,7 @@ export function showQuiz(q, onDone) {
   const list = document.createElement('div');
   list.className = 'quiz-options';
   let answered = false;
+  let rereadTimer = null;
   let demoIdx = -1; // 点击即读（示范先行）：第一次点=听音，再点同一张=确认作答
 
   q.opts.forEach((optChar, i) => {
@@ -115,6 +116,7 @@ export function showQuiz(q, onDone) {
     cont.className = 'quiz-continue';
     cont.textContent = '继续战斗 ▶';
     cont.addEventListener('click', () => {
+      if (rereadTimer) clearTimeout(rereadTimer); // 防止关闭后复读声混进选卡阶段的麦克风
       root.style.display = 'none';
       root.innerHTML = '';
       onDone(isCorrect, q);
@@ -122,8 +124,8 @@ export function showQuiz(q, onDone) {
     result.appendChild(cont);
     cont.focus({ preventScroll: true });
 
-    // 答完自动再读一遍正确答案（加深记忆）
-    setTimeout(() => voice.speak(`${q.char}，${q.word}的${q.char}。`), 2600);
+    // 答完自动再读一遍正确答案（加深记忆）；点"继续战斗"会取消
+    rereadTimer = setTimeout(() => voice.speak(`${q.char}，${q.word}的${q.char}。`), 2600);
   }
 
   root.appendChild(panel);

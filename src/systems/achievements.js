@@ -31,7 +31,7 @@ export function checkAchievement(event, data) {
   }
   if (unlocked.length) {
     try {
-      localStorage.setItem('math-survivors-profile-v1', JSON.stringify(p));
+      localStorage.setItem('hanzi-survivors-profile-v1', JSON.stringify(p));
     } catch (e) { /* ignore */ }
   }
   return unlocked;

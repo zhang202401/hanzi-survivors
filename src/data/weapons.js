@@ -89,6 +89,8 @@ export function drawMixedCards(ps, drawThreeCards) {
         char: newWeapon.char,
         pinyin: newWeapon.pinyin,
         plain: newWeapon.plain,
+        word: newWeapon.word,
+        soundsLike: newWeapon.soundsLike,
         emoji: newWeapon.emoji,
         name: newWeapon.name,
         max: WEAPON_MAX,

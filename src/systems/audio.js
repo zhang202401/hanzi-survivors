@@ -7,8 +7,8 @@ let master = null;
 let volume = 0.8;
 let muted = false;
 try {
-  muted = localStorage.getItem('math-survivors-muted') === '1';
-  volume = Number(localStorage.getItem('math-survivors-volume') ?? 0.8) || 0.8;
+  muted = localStorage.getItem('hanzi-survivors-muted') === '1';
+  volume = Number(localStorage.getItem('hanzi-survivors-volume') ?? 0.8) || 0.8;
 } catch (e) { /* ignore */ }
 
 export function ensureAudio() {
@@ -53,7 +53,7 @@ export function setVolume(v) {
   volume = Math.max(0, Math.min(1, v));
   if (master) master.gain.value = muted ? 0 : volume;
   try {
-    localStorage.setItem('math-survivors-volume', String(volume));
+    localStorage.setItem('hanzi-survivors-volume', String(volume));
   } catch (e) { /* ignore */ }
 }
 
@@ -65,7 +65,7 @@ export function toggleMute() {
   muted = !muted;
   if (master) master.gain.value = muted ? 0 : volume;
   try {
-    localStorage.setItem('math-survivors-muted', muted ? '1' : '0');
+    localStorage.setItem('hanzi-survivors-muted', muted ? '1' : '0');
   } catch (e) { /* ignore */ }
   return muted;
 }

@@ -390,6 +390,12 @@ export default class UIScene extends Phaser.Scene {
   /** 启动一轮语音听写：喊出卡片上的字 → 命中即升级；喊错有梯度提示 */
   startVoicePick() {
     if (!this.levelUpUI || !voice.asrSupported()) return;
+    // 任何 TTS 还在播（答题解析尾音/提示音）都先等它结束，防止麦克风录到扬声器声音误选
+    if ('speechSynthesis' in window && window.speechSynthesis.speaking) {
+      clearTimeout(this._asrRetry);
+      this._asrRetry = setTimeout(() => this.startVoicePick(), 400);
+      return;
+    }
     const cards = this.levelUpUI.cards;
     const session = this._asrSession;
     // 跟读提示文字保持显示，直到下一次听到结果
@@ -422,7 +428,17 @@ export default class UIScene extends Phaser.Scene {
         }
       }
     );
-    if (!ok && this._cardHeard) this._cardHeard.setText(' 麦克风启动失败，点话筒再试');
+    if (!ok) {
+      // 启动失败（权限/占用）：自动重试 3 次，仍失败则提示点话筒手动重试
+      this._startFails = (this._startFails || 0) + 1;
+      if (this._startFails <= 3) {
+        this._asrRetry = setTimeout(() => this.startVoicePick(), 1200);
+      } else if (this._cardHeard) {
+        this._cardHeard.setText(' 麦克风启动失败，点话筒再试');
+      }
+    } else {
+      this._startFails = 0;
+    }
   }
 
   /** 喊错了：梯度提示（先鼓励重读 → "跟老师念"带字词示范并高亮卡片 → 屡次失败给家长提示） */
@@ -433,8 +449,9 @@ export default class UIScene extends Phaser.Scene {
       // 第一次喊错：不直接给答案，引导看卡片重读
       this._pulseCards();
       this._pauseVoicePick();
+      const seq1 = this._hintSeq;
       voice.speak('喊的是' + said + '呀。再看看卡片，大声读出来！', {
-        onEnd: () => this._resumeVoicePick(),
+        onEnd: () => { if (seq1 === this._hintSeq) this._resumeVoicePick(); },
       });
     } else {
       if (this._missCount >= 6 && this._cardHeard) {
@@ -448,8 +465,11 @@ export default class UIScene extends Phaser.Scene {
       if (this._cardHeard) {
         this._cardHeard.setText(` 👉 跟老师念：${hintCard.char}，${hintCard.word || hintCard.char}的${hintCard.char}！`);
       }
+      // _hintSeq 令牌：新提示覆盖旧提示时（cancel 会触发旧 onend），旧回调不得提前恢复聆听
+      this._hintSeq = (this._hintSeq || 0) + 1;
+      const seq = this._hintSeq;
       voice.speak(`跟老师念：${hintCard.char}，${hintCard.word || hintCard.char}的${hintCard.char}！`, {
-        onEnd: () => this._resumeVoicePick(),
+        onEnd: () => { if (seq === this._hintSeq) this._resumeVoicePick(); },
       });
     }
   }
@@ -457,6 +477,7 @@ export default class UIScene extends Phaser.Scene {
   /** 暂停聆听（朗读提示期间，防止麦克风录到扬声器声音误选） */
   _pauseVoicePick() {
     this._asrSession += 1; // 作废当前会话回调
+    this._hintSeq = (this._hintSeq || 0) + 1; // 作废尚未执行的旧提示 onEnd
     this._voicePaused = true;
     clearTimeout(this._asrRetry);
     voice.stopListen(this._asrRec);

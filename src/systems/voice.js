@@ -18,6 +18,9 @@ const SRClass = typeof window !== 'undefined'
   ? (window.SpeechRecognition || window.webkitSpeechRecognition)
   : undefined;
 
+// Chrome TTS GC bug：utterance 被回收会导致 onend 永不触发，模块级持有引用
+let currentUtterance = null;
+
 // ================= 中文音色优选 =================
 // 不同设备默认音色差异很大（Windows 默认偏机械、Edge 自带晓晓等神经网络音很自然）。
 // 策略：按音色名评分选最自然的中文语音；家长也可在设置里手动挑选（持久化）。
@@ -123,6 +126,9 @@ export const voice = {
   /**
    * 朗读文本；开关关闭或环境不支持时静默跳过。
    * opts.onEnd：朗读结束回调（用于"跟读提示"读完再恢复聆听，避免麦克风录到扬声器声音）。
+   * 兼容处理：
+   *  - Chrome 有名的 bug：utterance 无引用会被 GC，onend 永不触发 → 模块级持有引用
+   *  - 再加超时兜底：无论 onend/onerror 是否触发，超时后必调 onEnd，避免"跟读提示"念完却卡死不再聆听
    */
   speak(text, { rate = 0.92, onEnd } = {}) {
     if (!enabled || !text || !('speechSynthesis' in window)) {
@@ -139,9 +145,22 @@ export const voice = {
       }
       u.rate = rate; // 幼儿听语速稍慢；不变调（pitch 改动会明显降自然度）
       u.pitch = 1;
+
       if (onEnd) {
-        u.onend = () => { try { onEnd(); } catch (e) { /* ignore */ } };
-        u.onerror = () => { try { onEnd(); } catch (e) { /* ignore */ } };
+        let done = false;
+        const finish = () => {
+          if (done) return;
+          done = true;
+          clearTimeout(this._ttsGuard);
+          if (currentUtterance === u) currentUtterance = null;
+          try { onEnd(); } catch (e) { /* ignore */ }
+        };
+        u.onend = finish;
+        u.onerror = finish;
+        // 超时兜底：按字数估算朗读时长（语速0.92约330ms/字），上浮 2.5 秒
+        const estimate = Math.max(2500, text.length * 500 + 2000);
+        this._ttsGuard = setTimeout(finish, estimate);
+        currentUtterance = u; // 防 GC（Chrome onend 不触发的根因）
       }
       window.speechSynthesis.cancel(); // 打断上一条，避免排队堆积
       window.speechSynthesis.speak(u);

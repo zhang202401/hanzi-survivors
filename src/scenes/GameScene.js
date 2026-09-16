@@ -52,6 +52,7 @@ export default class GameScene extends Phaser.Scene {
     this.novaTimer = 0;
     this.pendingLevelUps = 0;
     this.choosing = false;
+    this.restOverlayOpen = false; // 休息浮层状态随开局复位
     this.quizAskedThisBatch = false;
     this.bossFired = new Set();
     this.boss = null;
