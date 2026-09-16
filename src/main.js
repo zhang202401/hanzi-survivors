@@ -39,6 +39,9 @@ import UIScene from './scenes/UIScene.js';
     scene: [BootScene, TitleScene, GameScene, UIScene],
   });
 
+  // 游戏包已就绪：移除 index.html 里的"加载中"占位层（fixed 定位会盖住画布）
+  document.getElementById('loading-hint')?.remove();
+
   // 自动化测试句柄
   window.__game = game;
 
