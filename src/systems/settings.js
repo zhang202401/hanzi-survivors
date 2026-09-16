@@ -1,5 +1,5 @@
 import { audio } from './audio.js';
-import { voice } from './voice.js';
+import { voice, zhVoices } from './voice.js';
 
 /** 读取性能模式（省电模式：敌量/粒子降档） */
 export function isPerfMode() {
@@ -70,6 +70,54 @@ export function showSettings(onClose) {
   });
   renderVoice();
   panel.appendChild(voiceBtn);
+
+  // 音色选择：自动优选 + 手动挑选 + 试听（不同设备音色差异大，家长可试听后选定）
+  const voiceRow = document.createElement('div');
+  voiceRow.className = 'set-row';
+  const vLabel = document.createElement('span');
+  const buildVoiceOptions = () => {
+    vLabel.innerHTML = `🗣 音色<br><small style="color:#64748b">当前：${voice.activeVoiceName()}</small>`;
+  };
+  buildVoiceOptions();
+  const sel = document.createElement('select');
+  sel.style.cssText = 'flex:1;min-height:40px;background:#16203a;color:#e2e8f0;border:1px solid #2a3a5e;border-radius:8px;font-family:inherit';
+  const fillVoices = () => {
+    sel.innerHTML = '';
+    const auto = document.createElement('option');
+    auto.value = '';
+    auto.textContent = '自动（推荐·选最自然的）';
+    sel.appendChild(auto);
+    zhVoices().forEach((v) => {
+      const o = document.createElement('option');
+      o.value = v.name;
+      o.textContent = v.name + (v.localService ? '（本机）' : '（在线）');
+      sel.appendChild(o);
+    });
+    sel.value = voice.getVoiceName() || '';
+  };
+  fillVoices();
+  // 音色列表异步加载，稍后再刷一次
+  setTimeout(fillVoices, 600);
+  setTimeout(fillVoices, 2000);
+  sel.addEventListener('change', () => {
+    voice.setVoiceName(sel.value || null);
+    buildVoiceOptions();
+    voice.speak('大家好，一起认字啦！');
+  });
+  const tryBtn = document.createElement('button');
+  tryBtn.className = 'rp-btn';
+  tryBtn.style.flex = '0 0 88px';
+  tryBtn.style.marginTop = '0';
+  tryBtn.textContent = '▶ 试听';
+  tryBtn.addEventListener('click', () => voice.speak('你好呀！跟我一起大声读：山，大山。'));
+  voiceRow.appendChild(vLabel);
+  voiceRow.appendChild(sel);
+  voiceRow.appendChild(tryBtn);
+  panel.appendChild(voiceRow);
+  const voiceTip = document.createElement('div');
+  voiceTip.className = 'rp-advice';
+  voiceTip.textContent = '想要更自然的声音：用 Edge 浏览器自带"晓晓"等在线音色最自然；Chrome 用"Google 普通话"；改完点"试听"对比。';
+  panel.appendChild(voiceTip);
 
   // 麦克风测试：喊一句话看识别结果（验证喊字选卡可用性）
   const micBtn = document.createElement('button');
