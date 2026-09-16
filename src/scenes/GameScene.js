@@ -945,8 +945,10 @@ export default class GameScene extends Phaser.Scene {
       });
       ui.showLevelUp(cards, (chosen) => {
         try {
-          // 选卡成功：朗读汉字确认（边打边听，强化字音字形绑定）
-          voice.speak(`${chosen.char}！${chosen.lesson ? chosen.lesson : ''}`);
+          // 选卡成功：跟读成功先表扬（随机变化，避免机械重复），再朗读确认
+          const PRAISE = ['读得真棒', '声音真响亮', '对啦，真厉害', '哇，读得真好', '就是它，好棒'];
+          const praise = chosen.__echoed ? PRAISE[Math.floor(Math.random() * PRAISE.length)] + '！' : '';
+          voice.speak(`${chosen.char}！${praise}${chosen.lesson ? chosen.lesson : ''}`);
           chosen.__apply(); // apply 效果 + skillLevels 计数（只在这里加一次）
           if (chosen.isWeapon) this.ach('weapons', Object.keys(this.playerState.weapons || {}).length);
           // 满级进化

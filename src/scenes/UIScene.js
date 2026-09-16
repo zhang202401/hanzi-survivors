@@ -405,6 +405,7 @@ export default class UIScene extends Phaser.Scene {
         if (hit) {
           const idx = cards.indexOf(hit);
           sfx.gem();
+          if (this._missCount >= 2) hit.__echoed = true; // 带读后跟读成功：让战斗场景加表扬
           this.pickCard(this.levelUpUI.onPick, idx);
         } else {
           this._onShoutMiss(cards, texts);
@@ -424,7 +425,7 @@ export default class UIScene extends Phaser.Scene {
     if (!ok && this._cardHeard) this._cardHeard.setText(' 麦克风启动失败，点话筒再试');
   }
 
-  /** 喊错了：梯度提示（先鼓励重读，再"跟老师念"带读并高亮卡片） */
+  /** 喊错了：梯度提示（先鼓励重读 → "跟老师念"带字词示范并高亮卡片 → 屡次失败给家长提示） */
   _onShoutMiss(cards, texts) {
     this._missCount += 1;
     const said = (texts && texts[0]) || '';
@@ -436,15 +437,18 @@ export default class UIScene extends Phaser.Scene {
         onEnd: () => this._resumeVoicePick(),
       });
     } else {
-      // 连续喊错：跟读模式——语音带读一张卡 + 卡片高亮闪烁，跟着念即命中
+      if (this._missCount >= 6 && this._cardHeard) {
+        this._cardHeard.setText(' 😊 识别有点难：让孩子靠近麦克风、大声慢一点');
+      }
+      // 跟读模式（洪恩识字"说"环节范式）：字在词中示范——"山，大山的山"，跟着念即命中
       const hintCard = cards[this._hintIdx % cards.length];
       this._hintIdx += 1;
       this._glowCard(hintCard);
       this._pauseVoicePick();
       if (this._cardHeard) {
-        this._cardHeard.setText(` 👉 跟老师念：${hintCard.char}！`);
+        this._cardHeard.setText(` 👉 跟老师念：${hintCard.char}，${hintCard.word || hintCard.char}的${hintCard.char}！`);
       }
-      voice.speak(`跟老师念：${hintCard.char}！${hintCard.char}！`, {
+      voice.speak(`跟老师念：${hintCard.char}，${hintCard.word || hintCard.char}的${hintCard.char}！`, {
         onEnd: () => this._resumeVoicePick(),
       });
     }

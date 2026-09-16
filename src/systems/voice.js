@@ -200,18 +200,30 @@ export const voice = {
 
   /**
    * 匹配：喊的内容是否命中某张卡。
-   * cards: [{ char, plain, ... }]；texts: 候选说话文本数组。
+   * cards: [{ char, plain, soundsLike, ... }]；texts: 候选说话文本数组。
+   * 通用 ASR 对儿童语音准确率仅约 60%，所以按三级容错：
+   *   1) 文本包含卡片汉字（喊"大象"也能选中"大"）
+   *   2) 文本包含易混音字（孩子喊"山"被识别成"三/杉/闪"——平翘舌/声调/前后鼻音混淆）
+   *   3) 文本包含拼音音节
    * 返回命中的卡片 或 null。
    */
   matchCards(cards, texts) {
     for (const raw of texts || []) {
       const said = String(raw).replace(/[\s,，。！!？?、·~～]/g, '');
       if (!said) continue;
-      // 1) 文本包含卡片汉字（喊词语也算对，"大象"包含"大"）
+      // 1) 精确字命中
       for (const card of cards) {
         if (card.char && said.includes(card.char)) return card;
       }
-      // 2) 提取拼音音节匹配（汉字未命中时，如识别成同音其他字）
+      // 2) 易混音命中（儿童发音：平翘舌 sh/s、前后鼻音 an/ang、声调漂移）
+      for (const card of cards) {
+        if (card.soundsLike) {
+          for (const ch of card.soundsLike) {
+            if (said.includes(ch)) return card;
+          }
+        }
+      }
+      // 3) 拼音音节兜底（识别成拉丁字母的罕见情况）
       const spoken = said.toLowerCase();
       for (const card of cards) {
         if (card.plain && spoken.includes(card.plain)) return card;
