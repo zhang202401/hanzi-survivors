@@ -190,6 +190,13 @@ export default class GameScene extends Phaser.Scene {
     // R45 皮肤 + R7 移动尾迹
     this.skinTint = getSkin().tint;
     this.player.setTint(this.skinTint);
+
+    // 角色进化系统字段（必须在下方 applyEvolution 之前初始化）
+    this._evoTier = 0;
+    this._evoRing = null;
+    this._evoOrbs = [];
+    this.playerBaseScale = 1;
+
     this.trail = this.add.particles(0, 0, 'particle', {
       follow: this.player,
       frequency: 28,
@@ -203,15 +210,64 @@ export default class GameScene extends Phaser.Scene {
     });
     this.trail.setDepth(4);
 
+    // 初始形态（1 档小圆豆，静默应用）
+    this.playerBaseScale = 1;
+    this.applyEvolution(1, true);
+
     // 索敌锁定指示器：当前自动攻击目标（让"会开火"可见）
     this.lockon = this.add.circle(0, 0, 26, 0xffffff, 0).setStrokeStyle(2, 0xfbbf24, 0.9).setDepth(3).setVisible(false);
     this.lockonTarget = null;
+  }
 
-    this.tweens.add({
-      targets: this.player,
-      scale: { from: 0.95, to: 1.08 },
-      duration: 1200, yoyo: true, repeat: -1, ease: 'Sine.InOut',
-    });
+  /** 等级 → 进化档位：1 小圆豆 / 2 光环小豆 / 3 星环小豆 / 4 超级大豆 */
+  evoTierForLevel(level) {
+    if (level >= 30) return 4;
+    if (level >= 20) return 3;
+    if (level >= 10) return 2;
+    return 1;
+  }
+
+  /** 应用进化档位：缩放、碰撞体、光环与环绕星豆的创建/销毁 */
+  applyEvolution(tier, silent) {
+    const base = 1 + (tier - 1) * 0.11;
+    this._evoTier = tier;
+    this.playerBaseScale = base;
+
+    // 碰撞体同步缩放（贴图 40px，圆心居中：offset = 20 - r），封顶防难度失衡
+    const r = Math.min(PLAYER.RADIUS * base, 22);
+    this.player.body.setCircle(r, 20 - r, 20 - r);
+
+    // 光环层（档位 ≥2）
+    if (tier >= 2 && !this._evoRing) {
+      this._evoRing = this.add.image(0, 0, 'joy-base')
+        .setTint(this.skinTint).setAlpha(0.35).setDepth(4).setScale(base * 0.62);
+    } else if (this._evoRing) {
+      this._evoRing.setScale(base * 0.62).setAlpha(tier >= 2 ? 0.35 : 0);
+      if (tier < 2) {
+        this._evoRing.destroy();
+        this._evoRing = null;
+      }
+    }
+
+    // 环绕星豆（档位 3 → 1 颗，档位 4 → 2 颗）
+    const orbCount = tier >= 4 ? 2 : tier >= 3 ? 1 : 0;
+    while (this._evoOrbs.length < orbCount) {
+      const orb = this.add.image(0, 0, 'joy-stick')
+        .setTint(this.skinTint).setAlpha(0.9).setDepth(4).setScale(0.42);
+      this._evoOrbs.push(orb);
+    }
+    while (this._evoOrbs.length > orbCount) {
+      this._evoOrbs.pop().destroy();
+    }
+
+    if (!silent) {
+      const names = { 1: '小圆豆', 2: '光环小豆', 3: '星环小豆', 4: '超级大豆' };
+      this.showFloat(this.player.x, this.player.y - 60, `✦ 进化成【${names[tier]}】啦！`, '#fbbf24', 20);
+      sfx.levelup();
+      this.goldBurst();
+      import('../systems/voice.js').then((m) => m.voice.speak(`进化啦！变成${names[tier]}！`));
+      this.ach('evolve', 1);
+    }
   }
 
   setupEnemies() {
@@ -1624,6 +1680,27 @@ export default class GameScene extends Phaser.Scene {
           .setRotation(Math.atan2(this.dashDir.y, this.dashDir.x));
         this.tweens.add({ targets: ghost, alpha: 0, duration: 280, onComplete: () => ghost.destroy() });
       }
+    }
+
+    // 角色进化：等级跨档时应用新形态（体型/光环/星豆）
+    const tier = this.evoTierForLevel(ps.level);
+    if (tier !== this._evoTier) this.applyEvolution(tier, false);
+
+    // 呼吸脉动（替代旧 tween：与进化基础缩放叠加）
+    const pulse = 1 + 0.05 * Math.sin(this.time.now / 500);
+    this.player.setScale(this.playerBaseScale * pulse);
+
+    // 进化层跟随：光环随体缩放微旋，星豆环绕
+    if (this._evoRing) {
+      this._evoRing.setPosition(this.player.x, this.player.y);
+      this._evoRing.rotation += delta / 900;
+      this._evoRing.setScale(this.playerBaseScale * 0.62);
+    }
+    if (this._evoOrbs.length) {
+      this._evoOrbs.forEach((orb, i) => {
+        const a = this.time.now / 650 + (Math.PI * 2 * i) / this._evoOrbs.length;
+        orb.setPosition(this.player.x + Math.cos(a) * 36 * this.playerBaseScale, this.player.y + Math.sin(a) * 36 * this.playerBaseScale);
+      });
     }
 
     const invincible = this.time.now < ps.invincibleUntil;
