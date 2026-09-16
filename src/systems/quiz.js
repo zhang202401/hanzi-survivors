@@ -17,7 +17,7 @@ export function showQuiz(q, onDone) {
 
   const tag = document.createElement('div');
   tag.className = 'quiz-tag';
-  tag.textContent = `⭐ 听一听 · 选一选${q.replay ? ' · 错字重现' : ''}`;
+  tag.textContent = '⭐ 听一听 · 点字听音 · 再点一下确认';
   panel.appendChild(tag);
 
   const result = document.createElement('div');
@@ -33,6 +33,7 @@ export function showQuiz(q, onDone) {
   const list = document.createElement('div');
   list.className = 'quiz-options';
   let answered = false;
+  let demoIdx = -1; // 点击即读（示范先行）：第一次点=听音，再点同一张=确认作答
 
   q.opts.forEach((optChar, i) => {
     const btn = document.createElement('button');
@@ -43,11 +44,27 @@ export function showQuiz(q, onDone) {
     const pinyin = document.createElement('span');
     pinyin.className = 'pinyin';
     pinyin.textContent = '\u00A0'; // 答题中不显示拼音（防止"拼"代替"认"），答完揭晓
+    const confirmHint = document.createElement('span');
+    confirmHint.className = 'confirm-hint';
+    confirmHint.textContent = '🔊 听到了吗？再点一下确认';
+    confirmHint.style.cssText = 'font-size:12px;color:#4ade80;visibility:hidden';
     btn.appendChild(hanzi);
     btn.appendChild(pinyin);
+    btn.appendChild(confirmHint);
 
     btn.addEventListener('click', () => {
       if (answered) return;
+      if (demoIdx !== i) {
+        // 示范先行：朗读这个字（不选择），引导对比题目读音
+        demoIdx = i;
+        [...list.children].forEach((b, bi) => {
+          const h = b.querySelector('.confirm-hint');
+          if (h) h.style.visibility = bi === i ? 'visible' : 'hidden';
+        });
+        voice.speak(optChar);
+        return;
+      }
+      // 再点同一张：确认作答
       answered = true;
       const isCorrect = i === q.ans;
       btn.classList.add(isCorrect ? 'opt-correct' : 'opt-wrong');
@@ -55,6 +72,8 @@ export function showQuiz(q, onDone) {
       list.children[q.ans].classList.add('opt-correct');
       [...list.children].forEach((b, bi) => {
         b.querySelector('.pinyin').textContent = CHAR(q.opts[bi]).pinyin;
+        const h = b.querySelector('.confirm-hint');
+        if (h) h.style.visibility = 'hidden';
       });
       finish(isCorrect);
     });

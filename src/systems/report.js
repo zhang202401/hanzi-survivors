@@ -60,6 +60,22 @@ export function showReport({ timeStr, kills, level, correct, total, bossKills, v
   }
 
   const btns = document.createElement('div');
+
+  // 亲子共玩小贴士（研究支持：亲子共读共玩显著提升学习迁移）
+  const tips = [];
+  if (wrong.length) {
+    tips.push(`生活里遇到【${wrong[0].char}】（招牌、绘本都行），指给孩子问"这是什么字？"`);
+  }
+  if (summary.length) {
+    const best = [...summary].sort((a, b) => b.acc - a.acc)[0];
+    tips.push(`让孩子当小老师，教您读【${best.char}】——会教才是真的会。`);
+  }
+  tips.push('陪孩子一起玩 10 分钟，比孩子独自玩半小时更有效哦。');
+  const tipDiv = document.createElement('div');
+  tipDiv.className = 'rp-advice';
+  tipDiv.innerHTML = '👨‍👩‍👧 亲子小贴士：<br>' + tips.map((t) => `· ${t}`).join('<br>');
+  panel.appendChild(tipDiv);
+
   btns.className = 'rp-btns';
   const again = document.createElement('button');
   again.className = 'rp-btn primary';
