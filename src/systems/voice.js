@@ -177,6 +177,20 @@ export const voice = {
   },
 
   /**
+   * 构建"拼音音节 → 课程字"索引：孩子喊"目"，识别成"目"（课程内同音字），
+   * 而卡是"木" —— 同音即命中。儿童 ASR 准确率只有约 60%，同音容错是关键。
+   */
+  buildSyllableIndex(chars) {
+    this._syllableIndex = new Map();
+    for (const c of chars || []) {
+      if (!c.plain) continue;
+      const arr = this._syllableIndex.get(c.plain) || [];
+      arr.push(c.char);
+      this._syllableIndex.set(c.plain, arr);
+    }
+  },
+
+  /**
    * 开始一次听写。
    * onHeard(texts[])：识别结束/中间结果回调，texts 为候选文本数组（第一个是最佳结果）。
    * onEnd()：本次识别会话结束（无论成功失败）。
@@ -189,7 +203,7 @@ export const voice = {
       rec.lang = 'zh-CN';
       rec.interimResults = true;   // 中间结果也播报，孩子喊完立刻有反馈
       rec.maxAlternatives = 6;     // 多候选：发音不准也能捞到对的字
-      rec.continuous = false;
+      rec.continuous = true;       // 持续聆听：消除会话重启间隙漏听（单字喊读场景更稳）
 
       rec.onresult = (event) => {
         const texts = [];
@@ -220,10 +234,11 @@ export const voice = {
   /**
    * 匹配：喊的内容是否命中某张卡。
    * cards: [{ char, plain, soundsLike, ... }]；texts: 候选说话文本数组。
-   * 通用 ASR 对儿童语音准确率仅约 60%，所以按三级容错：
+   * 通用 ASR 对儿童语音准确率仅约 60%，所以按四级容错：
    *   1) 文本包含卡片汉字（喊"大象"也能选中"大"）
-   *   2) 文本包含易混音字（孩子喊"山"被识别成"三/杉/闪"——平翘舌/声调/前后鼻音混淆）
-   *   3) 文本包含拼音音节
+   *   2) 文本包含同音课程字（喊"木"被识别成课程内的"目"——同音即命中）
+   *   3) 文本包含易混音字（孩子喊"山"被识别成"三/杉/闪"——平翘舌/声调/前后鼻音混淆）
+   *   4) 文本包含拼音音节
    * 返回命中的卡片 或 null。
    */
   matchCards(cards, texts) {
@@ -234,7 +249,18 @@ export const voice = {
       for (const card of cards) {
         if (card.char && said.includes(card.char)) return card;
       }
-      // 2) 易混音命中（儿童发音：平翘舌 sh/s、前后鼻音 an/ang、声调漂移）
+      // 2) 同音课程字命中（基于拼音音节索引）
+      if (this._syllableIndex) {
+        for (const card of cards) {
+          const same = this._syllableIndex.get(card.plain);
+          if (same) {
+            for (const ch of same) {
+              if (said.includes(ch)) return card;
+            }
+          }
+        }
+      }
+      // 3) 易混音命中（儿童发音：平翘舌 sh/s、前后鼻音 an/ang、声调漂移）
       for (const card of cards) {
         if (card.soundsLike) {
           for (const ch of card.soundsLike) {
@@ -242,7 +268,7 @@ export const voice = {
           }
         }
       }
-      // 3) 拼音音节兜底（识别成拉丁字母的罕见情况）
+      // 4) 拼音音节兜底（识别成拉丁字母的罕见情况）
       const spoken = said.toLowerCase();
       for (const card of cards) {
         if (card.plain && spoken.includes(card.plain)) return card;

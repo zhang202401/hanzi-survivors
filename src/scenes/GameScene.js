@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import { PLAYER, ENEMY, SPAWN, CONTACT, COLORS, WEAPON, GEM, XP, DROPS, ELITE, RUN, EBULLET } from '../config.js';
 import { applyResponsiveCamera } from '../systems/viewport.js';
 import { waveAt, bossTriggered } from '../data/waves.js';
+import { CHARS } from '../data/chars.js';
 import { pickQuizChar, buildShieldQuiz, recordCharAnswer, addSession } from '../systems/profile.js';
 import { showQuiz } from '../systems/quiz.js';
 import { drawMixedCards } from '../data/weapons.js';
@@ -53,7 +54,8 @@ export default class GameScene extends Phaser.Scene {
     this.pendingLevelUps = 0;
     this.choosing = false;
     this.restOverlayOpen = false; // 休息浮层状态随开局复位
-    this.quizAskedThisBatch = false;
+    this._levelUpCount = 0; // 升级计数：驱动听音选字(每2次)与喊字选卡(每5次)的节奏
+    voice.buildSyllableIndex(CHARS); // 同音字识别索引（提高喊字容错）
     this.bossFired = new Set();
     this.boss = null;
     this.bossKills = 0;
@@ -976,8 +978,9 @@ export default class GameScene extends Phaser.Scene {
     if (this.pendingLevelUps > 0 && !this.choosing) this.openLevelUp();
   }
 
-  // ---------- 升级：先答题（混合制），后三选一 ----------
+  // ---------- 升级：节奏制（每2次1次听音选字；每5次1次喊字选卡，其余点卡片） ----------
   openLevelUp() {
+    this._levelUpCount += 1;
     this.choosing = true;
     // R12 升级慢动作：时间凝固前先体验 0.5 秒子弹时间
     this.physics.world.timeScale = 3;
@@ -1001,6 +1004,8 @@ export default class GameScene extends Phaser.Scene {
           this.playerState.skillLevels[card.id] = (this.playerState.skillLevels[card.id] || 0) + 1;
         };
       });
+      // 节奏：每 5 次升级 1 次"看字读音"喊字选卡，其余直接点卡片
+      const voiceMode = this._levelUpCount % 5 === 0;
       ui.showLevelUp(cards, (chosen) => {
         try {
           // 选卡成功：跟读成功先表扬（随机变化，避免机械重复），再朗读确认
@@ -1021,15 +1026,13 @@ export default class GameScene extends Phaser.Scene {
           this.pendingLevelUps -= 1;
           this.physics.world.resume();
           if (this.pendingLevelUps > 0) this.openLevelUp();
-          else this.quizAskedThisBatch = false; // 批次结束，下次升级可再答题
         }
-      });
+      }, voiceMode ? 'voice' : 'hand');
     };
 
     try {
-      if (!this.quizAskedThisBatch && this.elapsedMs - (this.lastQuizAt || -99999) >= 30000) {
-        this.quizAskedThisBatch = true;
-        this.lastQuizAt = this.elapsedMs;
+      // 节奏：每 2 次升级出现 1 次听音选字（答对本次强化更高）
+      if (this._levelUpCount % 2 === 0) {
         const q = pickQuizChar(this.playerState.level);
         const onDone = (correct, qRec) => {
           recordCharAnswer(qRec.char, correct, this.playerState.level);

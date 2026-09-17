@@ -249,17 +249,18 @@ export default class UIScene extends Phaser.Scene {
     this.pauseOverlay = this.add.container(0, 0, [dim, title, tip, btn]);
   }
 
-  // ---------- 升级三选一（只接受【喊字】语音选择，不接受触摸） ----------
+  // ---------- 升级选卡：hand=点卡片手选（默认）；voice=看字读音喊字选择 ----------
   buildLevelUpCards(playerState) {
     return drawMixedCards(playerState, drawThreeCards);
   }
 
-  showLevelUp(cards, onPick) {
+  showLevelUp(cards, onPick, mode = 'hand') {
     const { width, height } = this.scale.gameSize;
     const ps = this.scene.get('Game').playerState;
+    this._cardMode = mode;
     const dim = this.add.rectangle(width / 2, height / 2, width, height, 0x0a0e1a, 0.82);
     const title = this.add
-      .text(width / 2, height / 2 - 185, '⬆ 升级！喊出卡片上的字', {
+      .text(width / 2, height / 2 - 185, mode === 'voice' ? '⬆ 升级！喊出卡片上的字' : '⬆ 升级！点卡片升级', {
         fontFamily: FONT,
         fontSize: '30px',
         color: '#fbbf24',
@@ -318,8 +319,21 @@ export default class UIScene extends Phaser.Scene {
         })
         .setOrigin(0.5, 1);
 
-      // 注意：没有任何点击/触摸交互 —— 只接受喊字（语音）
-      return this.add.container(0, 0, [g, hanzi, emoji, name, desc]);
+      const children = [g, hanzi, emoji, name, desc];
+
+      // hand 模式：卡片可点选；voice 模式：无任何触摸目标，只认喊字
+      if (mode === 'hand') {
+        const hit = this.add
+          .rectangle(cx, cy, cardW, cardH, 0xffffff, 0.001)
+          .setInteractive({ useHandCursor: true })
+          .on('pointerdown', () => {
+            sfx.gem();
+            this.pickCard(onPick, i);
+          });
+        children.push(hit);
+      }
+
+      return this.add.container(0, 0, children);
     });
 
     // 卡片交错入场动画
@@ -336,55 +350,70 @@ export default class UIScene extends Phaser.Scene {
       });
     });
 
-    // 听写指示条：麦克风状态 + 已听到的内容
-    const micY = height / 2 + (vertical ? 265 : 150);
-    const mic = this.add
-      .text(width / 2 - 130, micY, '🎤', { fontSize: '40px' })
-      .setOrigin(0.5);
-    const tip = this.add
-      .text(width / 2 + 30, micY - 16, '大声读出你想升级的字！', {
-        fontFamily: FONT, fontSize: '20px', color: '#4ade80', fontStyle: 'bold',
-      })
-      .setOrigin(0.5);
-    const heard = this.add
-      .text(width / 2 + 30, micY + 14, ' ……', {
-        fontFamily: FONT, fontSize: '15px', color: '#7dd3fc',
-      })
-      .setOrigin(0.5);
-
-    this.levelUpUI = this.add.container(0, 0, [dim, title, ...nodes, mic, tip, heard]);
+    this.levelUpUI = this.add.container(0, 0, [dim, title, ...nodes]);
     this.levelUpUI.cards = cards;
     this.levelUpUI.onPick = onPick;
-    this._cardMic = mic;
-    this._cardHeard = heard;
-    this._cardNodes = nodes;
-    this._missCount = 0; // 喊错计数：1 次鼓励重读，2 次起进入"跟老师念"带读
-    this._hintIdx = 0;   // 带读轮换：把三张卡都带到
-    this._asrSession = (this._asrSession || 0) + 1; // 会话令牌：作废旧回调
-    this._voicePaused = false;
+    this.levelUpUI.mode = mode;
 
-    // 麦克风图标脉冲
-    this.tweens.add({
-      targets: mic,
-      scale: { from: 1, to: 1.25 },
-      alpha: { from: 1, to: 0.6 },
-      duration: 700,
-      yoyo: true,
-      repeat: -1,
-    });
+    if (mode === 'voice') {
+      // 听写指示条：麦克风状态 + 已听到的内容
+      const micY = height / 2 + (vertical ? 265 : 150);
+      const mic = this.add
+        .text(width / 2 - 130, micY, '🎤', { fontSize: '40px' })
+        .setOrigin(0.5);
+      const tip = this.add
+        .text(width / 2 + 30, micY - 16, '大声读出你想升级的字！', {
+          fontFamily: FONT, fontSize: '20px', color: '#4ade80', fontStyle: 'bold',
+        })
+        .setOrigin(0.5);
+      const heard = this.add
+        .text(width / 2 + 30, micY + 14, ' ……', {
+          fontFamily: FONT, fontSize: '15px', color: '#7dd3fc',
+        })
+        .setOrigin(0.5);
+      this.levelUpUI.add([mic, tip, heard]);
+      this._cardMic = mic;
+      this._cardHeard = heard;
+      this._cardNodes = nodes;
+      this._missCount = 0; // 喊错计数：1 次鼓励重读，2 次起进入"跟老师念"带读
+      this._hintIdx = 0;   // 带读轮换：把三张卡都带到
+      this._asrSession = (this._asrSession || 0) + 1; // 会话令牌：作废旧回调
+      this._voicePaused = false;
 
-    // 点麦克风 = 再说一遍（点的是"开始听"，不是选卡）
-    mic.setInteractive({ useHandCursor: true }).on('pointerdown', () => this.startVoicePick());
+      // 麦克风图标脉冲
+      this.tweens.add({
+        targets: mic,
+        scale: { from: 1, to: 1.25 },
+        alpha: { from: 1, to: 0.6 },
+        duration: 700,
+        yoyo: true,
+        repeat: -1,
+      });
 
-    if (!voice.asrSupported()) {
-      // 浏览器不支持语音识别：给出明确引导 + 家长辅助数字键（仍不开放触摸选卡）
-      tip.setText('此浏览器不支持语音识别');
-      heard.setText('请用 Chrome/Edge/讯飞浏览器打开 · 应急：按 1/2/3 键');
+      // 点麦克风 = 再说一遍（点的是"开始听"，不是选卡）
+      mic.setInteractive({ useHandCursor: true }).on('pointerdown', () => this.startVoicePick());
+
+      if (!voice.asrSupported()) {
+        tip.setText('此浏览器不支持语音识别');
+        heard.setText('请用 Chrome/Edge/讯飞浏览器打开 · 应急：按 1/2/3 键');
+        this.bindCardKeys(onPick);
+        return;
+      }
+      this.unbindCardKeys(); // 语音模式：仅喊字可选
+      this.startVoicePick();
+    } else {
+      // 手选模式：大字提示 + 1/2/3 键也可用
+      this._cardMic = null;
+      this._cardHeard = null;
+      const tip = this.add
+        .text(width / 2, height / 2 + (vertical ? 265 : 150), '👆 点一张卡片升级！（键盘 1 / 2 / 3 也行）', {
+          fontFamily: FONT, fontSize: '20px', color: '#4ade80', fontStyle: 'bold',
+        })
+        .setOrigin(0.5);
+      this.levelUpUI.add(tip);
+      this.unbindCardKeys();
       this.bindCardKeys(onPick);
-      return;
     }
-    this.unbindCardKeys(); // 支持语音时：仅语音可选，清除可能残留的辅助键
-    this.startVoicePick();
   }
 
   /** 启动一轮语音听写：喊出卡片上的字 → 命中即升级；喊错有梯度提示 */
@@ -558,7 +587,7 @@ export default class UIScene extends Phaser.Scene {
 
   relayoutLevelUpUI() {
     if (!this.levelUpUI) return;
-    const { cards, onPick } = this.levelUpUI;
+    const { cards, onPick, mode } = this.levelUpUI;
     this._asrSession += 1;
     this._voicePaused = true;
     clearTimeout(this._asrRetry);
@@ -569,7 +598,7 @@ export default class UIScene extends Phaser.Scene {
     this._cardNodes = null;
     this.levelUpUI.destroy();
     this.levelUpUI = null;
-    this.showLevelUp(cards, onPick);
+    this.showLevelUp(cards, onPick, mode || 'hand');
   }
 
   restart() {
