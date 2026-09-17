@@ -259,8 +259,17 @@ export default class UIScene extends Phaser.Scene {
     const ps = this.scene.get('Game').playerState;
     this._cardMode = mode;
     const dim = this.add.rectangle(width / 2, height / 2, width, height, 0x0a0e1a, 0.82);
+    // 响应式缩放：手机竖屏/矮屏整体缩小卡片和底栏，保证不超出屏幕
+    const BW = 250, BH = 200, GAP = 18;
+    const vertical = width < 620;
+    const stackH = vertical ? 3 * BH + 2 * GAP : BH;
+    const stackW = vertical ? BW : 3 * BW + 2 * GAP;
+    const k = Math.max(0.5, Math.min(1, (height - 150) / (stackH + 120), (width - 28) / (stackW + 24)));
+    const cy = height / 2 - 12;
+    const stackTop = cy - (stackH * k) / 2;
+    const stackBottom = cy + (stackH * k) / 2;
     const title = this.add
-      .text(width / 2, height / 2 - 185, mode === 'voice' ? '⬆ 升级！喊出卡片上的字' : '⬆ 升级！点卡片升级', {
+      .text(width / 2, stackTop - 30 * k - 8, mode === 'voice' ? '⬆ 升级！喊出卡片上的字' : '⬆ 升级！点卡片升级', {
         fontFamily: FONT,
         fontSize: '30px',
         color: '#fbbf24',
@@ -269,12 +278,9 @@ export default class UIScene extends Phaser.Scene {
       })
       .setOrigin(0.5);
 
-    const vertical = width < 620;
-    const cardW = vertical ? Math.min(340, width - 40) : Math.min(250, width / 3 - 18);
-    const cardH = 200;
-    const gap = 18;
+    const cardW = BW * k, cardH = BH * k, gap = GAP * k;
     const startX = vertical ? width / 2 : width / 2 - (cardW * 3 + gap * 2) / 2 + cardW / 2;
-    const startY = vertical ? height / 2 - 85 : height / 2 - 20;
+    const startY = vertical ? stackTop + cardH / 2 : cy - 10;
 
     const nodes = cards.map((card, i) => {
       const cx = vertical ? width / 2 : startX + i * (cardW + gap);
@@ -285,41 +291,50 @@ export default class UIScene extends Phaser.Scene {
 
       const g = this.add.graphics();
       g.fillStyle(0x111a2e, 0.97);
-      g.fillRoundedRect(cx - cardW / 2, cy - cardH / 2, cardW, cardH, 16);
+      g.fillRoundedRect(cx - cardW / 2, cy - cardH / 2, cardW, cardH, 16 * k);
       g.lineStyle(willMax ? 4 : 2, borderColor, 0.95);
-      g.strokeRoundedRect(cx - cardW / 2, cy - cardH / 2, cardW, cardH, 16);
+      g.strokeRoundedRect(cx - cardW / 2, cy - cardH / 2, cardW, cardH, 16 * k);
 
-      // 巨大汉字（认知主体）+ emoji 提示
+      // 巨大汉字（认知主体，居左）
       const hanzi = this.add
-        .text(cx - 10, cy - 18, card.char, {
+        .text(cx - cardW * 0.24, cy - cardH * 0.10, card.char, {
           fontFamily: FONT,
-          fontSize: '84px',
+          fontSize: Math.round(76 * k) + 'px',
           fontStyle: 'bold',
           color: '#ffe9a3',
           stroke: '#78350f',
           strokeThickness: 3,
         })
         .setOrigin(0.5);
-      const emoji = this.add
-        .text(cx + cardW / 2 - 44, cy - cardH / 2 + 30, card.emoji || '', { fontSize: '34px' })
-        .setOrigin(0.5);
+
+      // 图样托盘（居右）：白底圆角 + 对应图样；缺图回退 emoji
+      const tileX = cx + cardW * 0.24;
+      const tileY = cy - cardH * 0.10;
+      const tray = this.add.graphics();
+      tray.fillStyle(0xf6f8fc, 1);
+      tray.fillRoundedRect(tileX - 46 * k, tileY - 46 * k, 92 * k, 92 * k, 14 * k);
+      const texKey = 'card_' + card.id;
+      const art = this.textures.exists(texKey)
+        ? this.add.image(tileX, tileY, texKey).setDisplaySize(84 * k, 84 * k)
+        : this.add.text(tileX, tileY, card.emoji || '', { fontSize: Math.round(44 * k) + 'px' }).setOrigin(0.5);
+
       const name = this.add
-        .text(cx, cy + 42, `${card.name} ${willMax ? '✦MAX' : `${lvl + 1}/${card.max === Infinity ? '∞' : card.max}`}`, {
+        .text(cx, cy + cardH * 0.21, `${card.name} ${willMax ? '✦MAX' : `${lvl + 1}/${card.max === Infinity ? '∞' : card.max}`}`, {
           fontFamily: FONT,
-          fontSize: '17px',
+          fontSize: Math.round(17 * k) + 'px',
           color: '#' + borderColor.toString(16).padStart(6, '0'),
         })
         .setOrigin(0.5);
       const desc = this.add
-        .text(cx, cy + cardH / 2 - 26, card.desc(lvl), {
+        .text(cx, cy + cardH / 2 - 22 * k, card.desc(lvl), {
           fontFamily: FONT,
-          fontSize: '12px',
+          fontSize: Math.round(12 * k) + 'px',
           color: COLORS.uiText,
-          wordWrap: { width: cardW - 28 },
+          wordWrap: { width: cardW - 26 * k },
         })
         .setOrigin(0.5, 1);
 
-      const children = [g, hanzi, emoji, name, desc];
+      const children = [g, hanzi, tray, art, name, desc];
 
       // hand 模式：卡片可点选；voice 模式：无任何触摸目标，只认喊字
       if (mode === 'hand') {
@@ -357,18 +372,18 @@ export default class UIScene extends Phaser.Scene {
 
     if (mode === 'voice') {
       // 听写指示条：麦克风状态 + 已听到的内容
-      const micY = height / 2 + (vertical ? 265 : 150);
+      const micY = Math.min(stackBottom + 44 * k, height - 46);
       const mic = this.add
-        .text(width / 2 - 130, micY, '🎤', { fontSize: '40px' })
+        .text(width / 2 - 110 * k, micY, '🎤', { fontSize: Math.round(40 * k) + 'px' })
         .setOrigin(0.5);
       const tip = this.add
-        .text(width / 2 + 30, micY - 16, '大声读出你想升级的字！', {
-          fontFamily: FONT, fontSize: '20px', color: '#4ade80', fontStyle: 'bold',
+        .text(width / 2 + 26 * k, micY - 14 * k, '大声读出你想升级的字！', {
+          fontFamily: FONT, fontSize: Math.round(20 * k) + 'px', color: '#4ade80', fontStyle: 'bold',
         })
         .setOrigin(0.5);
       const heard = this.add
-        .text(width / 2 + 30, micY + 14, ' ……', {
-          fontFamily: FONT, fontSize: '15px', color: '#7dd3fc',
+        .text(width / 2 + 26 * k, micY + 16 * k, ' ……', {
+          fontFamily: FONT, fontSize: Math.round(15 * k) + 'px', color: '#7dd3fc',
         })
         .setOrigin(0.5);
       this.levelUpUI.add([mic, tip, heard]);
@@ -406,8 +421,8 @@ export default class UIScene extends Phaser.Scene {
       this._cardMic = null;
       this._cardHeard = null;
       const tip = this.add
-        .text(width / 2, height / 2 + (vertical ? 265 : 150), '👆 点一张卡片升级！（键盘 1 / 2 / 3 也行）', {
-          fontFamily: FONT, fontSize: '20px', color: '#4ade80', fontStyle: 'bold',
+        .text(width / 2, Math.min(stackBottom + 44 * k, height - 40), '👆 点一张卡片升级！（键盘 1 / 2 / 3 也行）', {
+          fontFamily: FONT, fontSize: Math.round(20 * k) + 'px', color: '#4ade80', fontStyle: 'bold',
         })
         .setOrigin(0.5);
       this.levelUpUI.add(tip);

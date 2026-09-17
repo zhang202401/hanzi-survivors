@@ -8,7 +8,14 @@ export default class BootScene extends Phaser.Scene {
   }
 
   preload() {
-    // 后续在此加载 public/assets/ 手绘素材与音频，同名覆盖占位纹理
+    // 卡片图样（缺图不阻塞：UIScene 自动回退 emoji）
+    const CARD_IDS = [
+      'big', 'small', 'water', 'mountain', 'wind', 'fire', 'sun', 'earth',
+      'tree', 'gold', 'field', 'stone', 'star', 'foot', 'heart',
+      'whirl', 'chain', 'grenade', 'laser', 'missile', 'cluster', 'sine', 'boomer', 'frost', 'mine',
+    ];
+    CARD_IDS.forEach((id) => this.load.image('card_' + id, 'cards/' + id + '.png'));
+    this.load.on('loaderror', () => {});
   }
 
   create() {
