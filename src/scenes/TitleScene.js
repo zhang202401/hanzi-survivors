@@ -31,11 +31,12 @@ export default class TitleScene extends Phaser.Scene {
       blendMode: 'ADD',
     });
 
-    // 主标题
+    // 主标题（字号随屏宽缩放：小手机不超宽）
+    const titleSize = Math.min(68, Math.round(width * 0.185));
     this.title = this.add
       .text(cx, cy - 110, '汉字幸存者', {
         fontFamily: FONT,
-        fontSize: '68px',
+        fontSize: titleSize + 'px',
         fontStyle: 'bold',
         color: '#ffe9a3',
         stroke: '#fbbf24',
@@ -102,7 +103,7 @@ export default class TitleScene extends Phaser.Scene {
       .on('pointerdown', () => showSettings());
 
     this.add
-      .text(16, 16, '需要 🎤 麦克风 · 推荐 Chrome/Edge', {
+      .text(16, 16, width < 480 ? '🎤 需麦克风' : '需要 🎤 麦克风 · 推荐 Chrome/Edge', {
         fontFamily: FONT,
         fontSize: '13px',
         color: COLORS.uiDim,

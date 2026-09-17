@@ -59,9 +59,9 @@ export default class UIScene extends Phaser.Scene {
       .text(width - pad, top + 26, '00:00', { fontFamily: FONT, fontSize: '16px', color: COLORS.uiDim })
       .setOrigin(1, 0);
 
-    // 静音按钮（左上角外侧）
+    // 静音按钮（血条下方，避免小屏与血条/击杀数重叠）
     this.muteBtn = this.add
-      .text(pad + 2, 26, audio.muted ? '🔇' : '🔊', { fontSize: '18px' })
+      .text(pad + 2, top + 32, audio.muted ? '🔇' : '🔊', { fontSize: '18px' })
       .setInteractive({ useHandCursor: true })
       .on('pointerdown', () => {
         const m = audio.toggle();
@@ -157,7 +157,7 @@ export default class UIScene extends Phaser.Scene {
     this.hpText.setPosition(pad + 100, top + 16);
     this.killText.setPosition(pad + 210, top + 16);
     this.comboText.setPosition(pad + 290, top + 16);
-    this.muteBtn.setPosition(pad + 2, top + 19);
+    this.muteBtn.setPosition(pad + 2, top + 32);
     this.pauseBtn.setPosition(width - pad, top + 43);
     this.dashBtn.setPosition(width - pad - 6, height - 86);
     this.dashCdText.setPosition(width - pad - 6, height - 56);
@@ -261,10 +261,11 @@ export default class UIScene extends Phaser.Scene {
     const dim = this.add.rectangle(width / 2, height / 2, width, height, 0x0a0e1a, 0.82);
     // 响应式缩放：手机竖屏/矮屏整体缩小卡片和底栏，保证不超出屏幕
     const BW = 250, BH = 200, GAP = 18;
-    const vertical = width < 620;
+    // 竖屏堆叠仅在“窄且足够高”时使用：矮横屏改用横向排布（568×320 等场景）
+    const vertical = width < 620 && height >= 500;
     const stackH = vertical ? 3 * BH + 2 * GAP : BH;
     const stackW = vertical ? BW : 3 * BW + 2 * GAP;
-    const k = Math.max(0.5, Math.min(1, (height - 150) / (stackH + 120), (width - 28) / (stackW + 24)));
+    const k = Math.max(0.45, Math.min(1, (height - 150) / (stackH + 120), (width - 28) / (stackW + 24)));
     const cy = height / 2 - 12;
     const stackTop = cy - (stackH * k) / 2;
     const stackBottom = cy + (stackH * k) / 2;
@@ -643,6 +644,14 @@ export default class UIScene extends Phaser.Scene {
     this.xpFill.width = Number.isFinite(xpW) ? Math.max(xpW, 3) : 3;
     this.killText.setText(ps.shieldMax > 0 ? `☠ ${ps.kills}  🛡 ${ps.shield}/${ps.shieldMax}` : `☠ ${ps.kills}`);
     this.comboText.setText(game.combo >= 5 && game.comboTimer > 0 ? `🔥 连击 ×${game.combo}` : '');
+    // 连击文字动态定位：窄屏移到 HUD 第二行居中，宽屏跟随击杀数右侧
+    if (width < 480) {
+      this.comboText.x = width / 2 - this.comboText.width / 2;
+      this.comboText.y = top + 34;
+    } else {
+      this.comboText.y = top + 16;
+      this.comboText.x = Math.min(this.killText.x + this.killText.width + 10, width - this.comboText.width - 6);
+    }
     this.levelText.setText(`Lv.${ps.level}`);
 
     const t = Math.floor(game.elapsedMs / 1000);
