@@ -43,7 +43,7 @@ export default class UIScene extends Phaser.Scene {
 
     // 击杀/护盾（HP 右侧）
     this.killText = this.add
-      .text(pad + 210, top + 16, '☠ 0', { fontFamily: FONT, fontSize: '14px', color: COLORS.uiDim })
+      .text(pad + 210, top + 16, '👾 0', { fontFamily: FONT, fontSize: '14px', color: COLORS.uiDim })
       .setOrigin(0, 0.5);
 
     // R24 连击显示
@@ -642,7 +642,7 @@ export default class UIScene extends Phaser.Scene {
     this._xpShow = Phaser.Math.Linear(Number.isFinite(this._xpShow) ? this._xpShow : 0, xpRatio, 0.22);
     const xpW = (this.xpBg.width - 2) * this._xpShow;
     this.xpFill.width = Number.isFinite(xpW) ? Math.max(xpW, 3) : 3;
-    this.killText.setText(ps.shieldMax > 0 ? `☠ ${ps.kills}  🛡 ${ps.shield}/${ps.shieldMax}` : `☠ ${ps.kills}`);
+    this.killText.setText(ps.shieldMax > 0 ? `👾 ${ps.kills}  🛡 ${ps.shield}/${ps.shieldMax}` : `👾 ${ps.kills}`);
     this.comboText.setText(game.combo >= 5 && game.comboTimer > 0 ? `🔥 连击 ×${game.combo}` : '');
     // 连击文字动态定位：窄屏移到 HUD 第二行居中，宽屏跟随击杀数右侧
     if (width < 480) {
