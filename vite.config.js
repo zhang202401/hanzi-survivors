@@ -8,7 +8,7 @@ export default defineConfig({
     port: 5273,
   },
   build: {
-    target: 'es2020',
+    target: 'es2018', // 兼容老 iOS Safari（可选链等 ES2020 语法会自动降级）
     assetsInlineLimit: 0, // 素材文件保持独立，便于热替换
   },
 });
